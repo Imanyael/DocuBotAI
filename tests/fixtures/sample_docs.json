@@ -1,0 +1,42 @@
+{
+    "tools": [
+        {
+            "name": "FastAPI",
+            "description": "FastAPI framework, high performance, easy to learn, fast to code, ready for production",
+            "url": "https://fastapi.tiangolo.com",
+            "category": "web_framework"
+        },
+        {
+            "name": "SQLAlchemy",
+            "description": "Python SQL toolkit and Object Relational Mapper",
+            "url": "https://www.sqlalchemy.org",
+            "category": "database"
+        }
+    ],
+    "documents": [
+        {
+            "title": "FastAPI Introduction",
+            "content": "FastAPI is a modern, fast (high-performance) web framework for building APIs with Python 3.6+ based on standard Python type hints.",
+            "url": "https://fastapi.tiangolo.com/introduction",
+            "embedding_id": "doc1"
+        },
+        {
+            "title": "SQLAlchemy Tutorial",
+            "content": "SQLAlchemy is the Python SQL toolkit and Object Relational Mapper that gives application developers the full power and flexibility of SQL.",
+            "url": "https://docs.sqlalchemy.org/tutorial",
+            "embedding_id": "doc2"
+        }
+    ],
+    "queries": [
+        {
+            "text": "How to create a FastAPI application?",
+            "expected_answer": "To create a FastAPI application, you need to import FastAPI and create an instance of it.",
+            "relevant_docs": ["doc1"]
+        },
+        {
+            "text": "What is SQLAlchemy used for?",
+            "expected_answer": "SQLAlchemy is a Python SQL toolkit and Object Relational Mapper that provides database functionality.",
+            "relevant_docs": ["doc2"]
+        }
+    ]
+}
