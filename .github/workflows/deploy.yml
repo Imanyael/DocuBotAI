@@ -1,53 +1,66 @@
 name: Deploy
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
       with:
-        fetch-depth: 0
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.11"
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install build twine
-    
-    - name: Build package
-      run: python -m build
-    
-    - name: Publish to PyPI
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build and push frontend image
       env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      run: twine upload dist/*
-    
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        push: true
-        tags: |
-          ghcr.io/${{ github.repository }}:latest
-          ghcr.io/${{ github.repository }}:${{ github.ref_name }}
-        cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
-        cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
-    
-    - name: Deploy to production
-      env:
-        DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-        HOST: ${{ secrets.DEPLOY_HOST }}
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: docubot-frontend
+        IMAGE_TAG: ${{ github.sha }}
       run: |
-        echo "$DEPLOY_KEY" > deploy_key
-        chmod 600 deploy_key
-        ssh -i deploy_key -o StrictHostKeyChecking=no $HOST "cd /opt/docubotai && docker-compose pull && docker-compose up -d"
+        cd frontend
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+    - name: Update ECS service
+      run: |
+        aws ecs update-service --cluster docubot-cluster --service docubot-frontend --force-new-deployment
+
+    - name: Invalidate CloudFront cache
+      run: |
+        aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
+
+    - name: Deploy to Route53
+      env:
+        DOMAIN: docubotai.com
+        SUBDOMAIN: app
+      run: |
+        aws route53 change-resource-record-sets \
+          --hosted-zone-id ${{ secrets.ROUTE53_HOSTED_ZONE_ID }} \
+          --change-batch '{
+            "Changes": [{
+              "Action": "UPSERT",
+              "ResourceRecordSet": {
+                "Name": "'$SUBDOMAIN.$DOMAIN'",
+                "Type": "A",
+                "AliasTarget": {
+                  "HostedZoneId": "'${{ secrets.CLOUDFRONT_HOSTED_ZONE_ID }}'",
+                  "DNSName": "'${{ secrets.CLOUDFRONT_DOMAIN_NAME }}'",
+                  "EvaluateTargetHealth": false
+                }
+              }
+            }]
+          }'

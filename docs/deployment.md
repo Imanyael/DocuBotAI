@@ -1,308 +1,155 @@
 # Deployment Guide
 
-## Deployment Options
+## Prerequisites
 
-### 1. Docker Deployment (Recommended)
+1. AWS Account with the following services:
+   - ECR (Elastic Container Registry)
+   - ECS (Elastic Container Service)
+   - CloudFront
+   - Route 53
+   - ACM (AWS Certificate Manager)
 
-#### Prerequisites
-- Docker
-- Docker Compose
-- Domain name (optional)
-- SSL certificate (optional)
+2. GitHub repository secrets:
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+   - `CLOUDFRONT_DISTRIBUTION_ID`
+   - `CLOUDFRONT_HOSTED_ZONE_ID`
+   - `CLOUDFRONT_DOMAIN_NAME`
+   - `ROUTE53_HOSTED_ZONE_ID`
 
-#### Steps
+## Infrastructure Setup
 
-1. Clone the repository:
+### 1. ECR Repository
+
 ```bash
-git clone https://github.com/yourusername/DocuBotAI.git
-cd DocuBotAI
+aws ecr create-repository \
+  --repository-name docubot-frontend \
+  --image-scanning-configuration scanOnPush=true
 ```
 
-2. Create and configure `.env`:
+### 2. ECS Cluster and Service
+
 ```bash
-cp .env.example .env
-# Edit .env with your production settings
+# Create ECS cluster
+aws ecs create-cluster --cluster-name docubot-cluster
+
+# Create task definition
+aws ecs register-task-definition --cli-input-json file://task-definition.json
+
+# Create ECS service
+aws ecs create-service \
+  --cluster docubot-cluster \
+  --service-name docubot-frontend \
+  --task-definition docubot-frontend \
+  --desired-count 2 \
+  --launch-type FARGATE
 ```
 
-3. Build and start services:
-```bash
-docker-compose up -d
-```
+### 3. CloudFront Distribution
 
-4. Run migrations:
-```bash
-docker-compose exec app alembic upgrade head
-```
+1. Create a CloudFront distribution
+2. Configure origin to point to your ECS service
+3. Enable HTTPS and custom domain
+4. Configure caching behavior
 
-### 2. Manual Deployment
+### 4. Route 53 and SSL
 
-#### Prerequisites
-- Python 3.9+
-- PostgreSQL
-- Redis
-- Nginx
-- Supervisor
-- SSL certificate
+1. Create a hosted zone for your domain
+2. Request an SSL certificate through ACM
+3. Validate the certificate through DNS validation
+4. Add DNS records for your domain
 
-#### Steps
+## CI/CD Pipeline
 
-1. Install system dependencies:
-```bash
-# Ubuntu/Debian
-apt-get update
-apt-get install python3-pip postgresql redis-server nginx supervisor
+The GitHub Actions workflows handle:
 
-# CentOS/RHEL
-dnf install python3-pip postgresql redis nginx supervisor
-```
+1. Continuous Integration (`ci.yml`):
+   - Type checking
+   - Linting
+   - Building
+   - Testing
 
-2. Create database:
-```bash
-sudo -u postgres psql
-CREATE DATABASE docubotai;
-CREATE USER docubotai WITH PASSWORD 'your_password';
-GRANT ALL PRIVILEGES ON DATABASE docubotai TO docubotai;
-```
+2. Deployment (`deploy.yml`):
+   - Building Docker image
+   - Pushing to ECR
+   - Updating ECS service
+   - Invalidating CloudFront cache
+   - Updating Route 53 records
 
-3. Install application:
-```bash
-pip install docubotai
-```
+## Security Measures
 
-4. Configure Supervisor:
-```ini
-[program:docubotai]
-command=/usr/local/bin/uvicorn docubotai.api.main:app --host 0.0.0.0 --port 8000 --workers 4
-directory=/opt/docubotai
-user=docubotai
-autostart=true
-autorestart=true
-stderr_logfile=/var/log/docubotai/err.log
-stdout_logfile=/var/log/docubotai/out.log
+1. SSL/TLS Configuration:
+   - TLS 1.2 and 1.3 only
+   - Strong cipher suites
+   - HSTS enabled
 
-[program:docubotai-worker]
-command=/usr/local/bin/celery -A docubotai.tasks worker --loglevel=info
-directory=/opt/docubotai
-user=docubotai
-autostart=true
-autorestart=true
-stderr_logfile=/var/log/docubotai/celery-err.log
-stdout_logfile=/var/log/docubotai/celery-out.log
-```
+2. Security Headers:
+   - Content Security Policy (CSP)
+   - X-Frame-Options
+   - X-XSS-Protection
+   - X-Content-Type-Options
+   - Referrer-Policy
+   - Permissions-Policy
 
-5. Configure Nginx:
-```nginx
-server {
-    listen 80;
-    server_name your_domain.com;
+3. DDoS Protection:
+   - Rate limiting
+   - Connection limiting
+   - AWS Shield (recommended)
 
-    location / {
-        proxy_pass http://localhost:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
+4. Access Control:
+   - Hidden files protection
+   - Secure cookie configuration
+   - API endpoint protection
 
-    location /ws {
-        proxy_pass http://localhost:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-```
+## Monitoring and Logging
+
+1. CloudWatch:
+   - Container logs
+   - Metrics
+   - Alarms
+
+2. X-Ray:
+   - Distributed tracing
+   - Performance monitoring
+
+3. AWS WAF:
+   - Web application firewall
+   - Security rules
 
 ## Scaling
 
-### Horizontal Scaling
+1. Auto Scaling:
+   - ECS service auto scaling
+   - Target tracking policies
 
-1. Load Balancer Setup:
-```nginx
-upstream docubotai {
-    server backend1:8000;
-    server backend2:8000;
-    server backend3:8000;
-}
+2. Performance:
+   - CloudFront caching
+   - Gzip compression
+   - Browser caching
 
-server {
-    listen 80;
-    server_name your_domain.com;
+## Maintenance
 
-    location / {
-        proxy_pass http://docubotai;
-    }
-}
-```
+1. Regular Tasks:
+   - SSL certificate renewal
+   - Security updates
+   - Dependency updates
+   - Performance monitoring
 
-2. Session Persistence:
-- Use Redis for session storage
-- Configure sticky sessions if needed
-
-3. Worker Scaling:
-```bash
-celery -A docubotai.tasks worker --loglevel=info --concurrency=8
-```
-
-### Vertical Scaling
-
-1. Application Server:
-- Increase worker count
-- Optimize uvicorn settings
-- Use PyPy for performance
-
-2. Database:
-- Increase connection pool
-- Optimize PostgreSQL settings
-- Consider read replicas
-
-3. Redis:
-- Enable persistence
-- Increase maxmemory
-- Configure eviction policies
-
-## Monitoring
-
-### 1. Prometheus Setup
-
-```yaml
-scrape_configs:
-  - job_name: 'docubotai'
-    static_configs:
-      - targets: ['localhost:8000']
-```
-
-### 2. Grafana Dashboard
-
-Import the provided dashboard:
-- System metrics
-- API endpoints
-- Task queues
-- Error rates
-
-### 3. Logging
-
-Configure centralized logging:
-```python
-LOGGING = {
-    'version': 1,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-        },
-        'file': {
-            'class': 'logging.handlers.RotatingFileHandler',
-            'filename': '/var/log/docubotai/app.log',
-            'maxBytes': 10485760,
-            'backupCount': 5,
-        }
-    },
-    'root': {
-        'handlers': ['console', 'file'],
-        'level': 'INFO',
-    }
-}
-```
-
-## Backup Strategy
-
-### 1. Database Backup
-
-Daily backup script:
-```bash
-#!/bin/bash
-BACKUP_DIR="/backup/docubotai"
-DATE=$(date +%Y%m%d)
-pg_dump docubotai > "$BACKUP_DIR/db_$DATE.sql"
-```
-
-### 2. Document Storage
-
-Backup embedded documents:
-```bash
-rsync -av /data/documents/ /backup/documents/
-```
-
-### 3. Configuration
-
-Backup environment and config:
-```bash
-cp /opt/docubotai/.env /backup/config/
-cp -r /opt/docubotai/config/ /backup/config/
-```
-
-## Security
-
-### 1. SSL Configuration
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name your_domain.com;
-
-    ssl_certificate /etc/letsencrypt/live/your_domain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/your_domain.com/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-}
-```
-
-### 2. Firewall Rules
-
-```bash
-# Allow HTTP/HTTPS
-ufw allow 80/tcp
-ufw allow 443/tcp
-
-# Allow PostgreSQL only from internal network
-ufw allow from 10.0.0.0/8 to any port 5432
-```
-
-### 3. Security Headers
-
-```nginx
-add_header Strict-Transport-Security "max-age=31536000";
-add_header X-Frame-Options "SAMEORIGIN";
-add_header X-Content-Type-Options "nosniff";
-add_header Content-Security-Policy "default-src 'self'";
-```
+2. Backup:
+   - Database backups
+   - Configuration backups
+   - Disaster recovery plan
 
 ## Troubleshooting
 
-### Common Issues
+1. Common Issues:
+   - 502 Bad Gateway
+   - SSL certificate issues
+   - Cache invalidation
+   - Rate limiting
 
-1. Connection Errors:
-```bash
-# Check service status
-systemctl status docubotai
-systemctl status postgresql
-systemctl status redis
-
-# Check logs
-tail -f /var/log/docubotai/err.log
-```
-
-2. Performance Issues:
-```bash
-# Monitor resources
-top
-htop
-pg_top
-
-# Check slow queries
-SELECT * FROM pg_stat_activity WHERE state = 'active';
-```
-
-3. Memory Issues:
-```bash
-# Monitor memory
-free -m
-vmstat 1
-
-# Check Redis memory
-redis-cli info memory
-```
-
-### Support
-
-For additional support:
-- Documentation: https://docs.docubotai.com
-- Issues: https://github.com/yourusername/DocuBotAI/issues
-- Email: support@docubotai.com
+2. Debugging:
+   - CloudWatch logs
+   - X-Ray traces
+   - ECS task status
+   - CloudFront distribution status

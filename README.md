@@ -1,79 +1,113 @@
-# DocuBotAI
+# DocuBot AI
 
-DocuBotAI is an intelligent documentation agent that automatically scrapes your entire toolstack using Apify, processes the documentation through Claude API, and creates a RAG (Retrieval-Augmented Generation) system. This enables coding agents to utilize your tools to their full potential.
+An intelligent document processing and chat interface powered by AI.
 
 ## Features
 
-- 🔍 Automated documentation scraping with Apify
-- 🤖 Advanced processing using Claude API
-- 📚 RAG system for intelligent documentation retrieval
-- 🛠️ Full toolstack integration
-- 🔄 Real-time documentation updates
+- Interactive document chat interface
+- Real-time document processing
+- Advanced RAG implementation
+- Secure API integration
+- Modern, responsive UI
+- Multi-document support
+- Custom document workflows
 
-## Prerequisites
-
-- Python 3.9+
-- Docker (optional)
-- Apify API key
-- Claude API key
-
-## Installation
+## Quick Start
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/Imanyael/DocuBotAI.git
+git clone https://github.com/yourusername/DocuBotAI.git
 cd DocuBotAI
 ```
 
 2. Install dependencies:
 ```bash
-pip install -e .
+# Frontend
+cd frontend
+npm install
+
+# Backend (in a new terminal)
+pip install -e ".[dev]"
 ```
 
-3. Set up environment variables:
+3. Start development servers:
 ```bash
-cp .env.example .env
-# Edit .env with your API keys and configuration
+# Frontend
+npm run dev
+
+# Backend
+uvicorn docubotai.api.main:app --reload
 ```
 
-## Usage
+4. Open http://localhost:5173 in your browser
 
-1. Start the documentation scraping:
-```bash
-docubot scrape --source <documentation-url>
-```
+## Production Deployment
 
-2. Process documentation:
-```bash
-docubot process
-```
+### Prerequisites
 
-3. Run the RAG system:
-```bash
-docubot serve
-```
+1. AWS Account with:
+   - ECR (Elastic Container Registry)
+   - ECS (Elastic Container Service)
+   - CloudFront
+   - Route 53
+   - ACM (AWS Certificate Manager)
 
-## Project Structure
+2. GitHub repository secrets configured for CI/CD
 
-```
-DocuBotAI/
-├── docubot/
-│   ├── api/           # API endpoints
-│   ├── cli/           # Command line interface
-│   ├── core/          # Core functionality
-│   ├── models/        # Data models
-│   ├── scrapers/      # Documentation scrapers
-│   ├── rag/           # RAG system implementation
-│   └── utils/         # Utility functions
-├── tests/             # Test suite
-├── docs/              # Documentation
-└── examples/          # Usage examples
-```
+### Deployment Steps
+
+1. Push to main branch to trigger deployment
+2. Monitor deployment in GitHub Actions
+3. Access the application at https://app.docubotai.com
+
+For detailed deployment instructions, see [Deployment Guide](docs/deployment.md)
+
+## Development
+
+### Frontend
+
+- React with TypeScript
+- Vite for building
+- Tailwind CSS for styling
+- Radix UI components
+- Real-time updates with WebSocket
+
+### Backend
+
+- FastAPI
+- SQLAlchemy
+- Alembic migrations
+- Celery for tasks
+- RAG implementation
+- Document processing
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+See [Contributing Guide](CONTRIBUTING.md) for details.
+
+## Security
+
+- HTTPS everywhere
+- Content Security Policy
+- Rate limiting
+- DDoS protection
+- Input validation
+- Secure headers
+
+Report security issues to security@docubotai.com
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
+
+## Support
+
+- Documentation: https://docs.docubotai.com
+- Issues: https://github.com/yourusername/DocuBotAI/issues
+- Email: support@docubotai.com
